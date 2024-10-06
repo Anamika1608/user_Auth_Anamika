@@ -6,11 +6,10 @@ import Otp from '../models/otp.js';
 const JWT_SECRET = process.env.JWT_SECRET;
 import otpGenerator from 'otp-generator';
 import twilio from 'twilio';
-// const {  } = pkg;
+import otpVerification from '../Helpers/otpValidate.js';
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID
 const authToken = process.env.TWILIO_AUTH_TOKEN
-const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER
 
 const twilioClient = new twilio(accountSid, authToken)
 
@@ -65,7 +64,7 @@ export const sendOtp = async (req, res) => {
       return res.status(400).json({ message: "User with this phone number already exists" });
     }
 
-    const otp = otpGenerator.generate(6 , {upperCaseAlphabets : false , specialChars : false , lowerCaseAlphabets : false});
+    const otp = otpGenerator.generate(6, { upperCaseAlphabets: false, specialChars: false, lowerCaseAlphabets: false });
 
     const cDate = new Date()
 
@@ -77,7 +76,7 @@ export const sendOtp = async (req, res) => {
           otpExpiration: new Date(cDate.getTime())
         }
       },
-      { 
+      {
         upsert: true,
         new: true,
         setDefaultsOnInsert: true
@@ -93,7 +92,7 @@ export const sendOtp = async (req, res) => {
 
     twilioClient.messages.create({
       body: `Your OTP is ${otp}`,
-      from: '+19514194199',
+      from: process.env.TWILIO_PHONE_NUMBER,
       to: phoneNumber
     });
 
@@ -102,16 +101,38 @@ export const sendOtp = async (req, res) => {
       msg: 'otp sent successfully - ' + otp
     })
 
-    const token = jwt.sign({ id: newUser._id.toString() }, JWT_SECRET, { expiresIn: "12h" });
-
-    res.cookie("token", token, { httpOnly: true });
-    res.status(201).json({
-      message: "User registered successfully",
-      otp: otp // In a real application, don't send OTP back to the client
-    });
-
   } catch (err) {
     console.log(err);
     res.status(500).json({ message: "Internal server error", error: err.message });
   }
 };
+
+export const verifyOtp = async (req, res) => {
+  try {
+    const { phoneNumber, otp } = req.body;
+    const otpData = await Otp.findOne({ phoneNumber, otp })
+    if(!otpData){
+      res.status(404).json({ message: "You entered wrong OTP" });
+    }
+
+    const isOtpExpired = await otpVerification(otpData.otpExpiration);
+
+    console.log(isOtpExpired);
+
+    if(isOtpExpired) {
+      return res.status(200).json({
+        success: false,
+        msg: 'Your OTP has been expired.'
+      })
+    }
+
+    return res.status(200).json({
+      success: true,
+      msg: 'OTP Verified successfully !!'
+    })
+
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: "Internal server error", error: error.message });
+  }
+}

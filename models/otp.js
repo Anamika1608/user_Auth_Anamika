@@ -17,8 +17,8 @@ const otpSchema = new mongoose.Schema({
         require : true
     }
     , otpExpiration : {
-        type : String,
-        default : Date.now,
+        type : Date,
+        default: () => new Date(Date.now() + 2 * 60 * 1000),
         get : (otpExpiration) => otpExpiration.getTime(),
         set : (otpExpiration)=> new Date(otpExpiration)
     }
