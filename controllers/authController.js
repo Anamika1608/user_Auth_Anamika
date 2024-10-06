@@ -3,14 +3,15 @@ import validator from 'validator';
 import User from '../models/user.js';
 import Otp from '../models/otp.js';
 
-const JWT_SECRET = process.env.JWT_SECRET;
+import randomstring from 'randomstring';
 import otpGenerator from 'otp-generator';
 import twilio from 'twilio';
 import otpVerification from '../Helpers/otpValidate.js';
+import sendResetEmail from '../Helpers/sendEmail.js'
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID
 const authToken = process.env.TWILIO_AUTH_TOKEN
-
+const JWT_SECRET = process.env.JWT_SECRET;
 const twilioClient = new twilio(accountSid, authToken)
 
 export const register = async (req, res) => {
@@ -111,7 +112,7 @@ export const verifyOtp = async (req, res) => {
   try {
     const { phoneNumber, otp } = req.body;
     const otpData = await Otp.findOne({ phoneNumber, otp })
-    if(!otpData){
+    if (!otpData) {
       res.status(404).json({ message: "You entered wrong OTP" });
     }
 
@@ -119,7 +120,7 @@ export const verifyOtp = async (req, res) => {
 
     console.log(isOtpExpired);
 
-    if(isOtpExpired) {
+    if (isOtpExpired) {
       return res.status(200).json({
         success: false,
         msg: 'Your OTP has been expired.'
@@ -169,14 +170,14 @@ export const googleLogin = async (req, res) => {
 
     res.setHeader(
       'Set-Cookie',
-       cookie.serialize('token', token, { 
-         sameSite: 'lax', 
-         
-       })
-     )
+      cookie.serialize('token', token, {
+        sameSite: 'lax',
+
+      })
+    )
 
     res.cookie('token', token, {
-        httpOnly: true,
+      httpOnly: true,
     });
 
     console.log('New token set:', token);
@@ -187,7 +188,7 @@ export const googleLogin = async (req, res) => {
       user: { name: user.name, email: user.email, id: user._id }
     });
   }
-   catch (error) {
+  catch (error) {
     console.log("Error during Google login:", error.message);
     res.status(500).json({ message: "Internal server error", error: error.message });
   }
@@ -233,3 +234,22 @@ export const logout = (req, res) => {
   res.clearCookie("token");
   res.json({ message: "logged-out" });
 };
+
+export const forgetPassword = async (req, res) => {
+  try {
+    const email = req.body.email;
+    const userData = await User.findOne({ email: email });
+
+    if (userData) {
+      const randomString = randomstring.generate();
+      const data = User.updateOne({ email: email }, { $set: { token: randomString } });
+      sendResetEmail(userData.name, userData.email, randomString);
+
+      res.status(200).send({ message: "Pls check your email to reset your password" })
+    }
+    res.status(404).json({ message: "This email does not exist" });
+  } catch (error) {
+    console.log(error)
+    res.status(500).json({ message: "Internal server error", error: error.message });
+  }
+}
