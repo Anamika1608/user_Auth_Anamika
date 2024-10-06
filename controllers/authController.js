@@ -229,3 +229,7 @@ export const login = async (req, res) => {
   }
 };
 
+export const logout = (req, res) => {
+  res.clearCookie("token");
+  res.json({ message: "logged-out" });
+};
