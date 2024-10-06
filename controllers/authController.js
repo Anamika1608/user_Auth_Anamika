@@ -126,6 +126,12 @@ export const verifyOtp = async (req, res) => {
       })
     }
 
+    const token = jwt.sign({ id: otpData._id.toString() }, JWT_SECRET, { expiresIn: "12h" });
+
+    res.cookie('token', token, {
+      httpOnly: true
+    });
+
     return res.status(200).json({
       success: true,
       msg: 'OTP Verified successfully !!'
@@ -136,3 +142,54 @@ export const verifyOtp = async (req, res) => {
     res.status(500).json({ message: "Internal server error", error: error.message });
   }
 }
+
+export const googleLogin = async (req, res) => {
+  try {
+    const { code } = req.query;
+    if (!code) {
+      throw new Error("Authorization code not provided");
+    }
+
+    const googleRes = await oauth2client.getToken(code);
+    oauth2client.setCredentials(googleRes.tokens);
+
+    const userRes = await axios.get(
+      `https://www.googleapis.com/oauth2/v1/userinfo?alt=json&access_token=${googleRes.tokens.access_token}`
+    );
+
+    const { email, name } = userRes.data;
+    let user = await User.findOne({ email });
+
+    if (!user) {
+      user = new User({ name, email, password: process.env.DEFAULT_PASSWORD });
+      await user.save();
+    }
+
+    const token = jwt.sign({ id: user._id.toString() }, JWT_SECRET, { expiresIn: "12h" });
+
+    res.setHeader(
+      'Set-Cookie',
+       cookie.serialize('token', token, { 
+         sameSite: 'lax', 
+         
+       })
+     )
+
+    res.cookie('token', token, {
+        httpOnly: true,
+    });
+
+    console.log('New token set:', token);
+    console.log('Cookie set:', res.getHeader('Set-Cookie'));
+
+    res.status(200).json({
+      message: "User logged in successfully",
+      user: { name: user.name, email: user.email, id: user._id }
+    });
+  }
+   catch (error) {
+    console.log("Error during Google login:", error.message);
+    res.status(500).json({ message: "Internal server error", error: error.message });
+  }
+};
+
