@@ -1,6 +1,6 @@
 ## API Requests
 
-Here are the screenshots of the OTP API requests tested via Postman:
+Here are the screenshots of the API requests tested via Postman:
 
 ### Request OTP from number 
 ![Request OTP from number ](Postman_API_SS/request_otp.jpg)
